@@ -71,7 +71,7 @@ int threadpool_add(threadpool_t *pool, void (*function)(void *), void *argument,
         return THREADPOOL_LOCK_FAILURE;
     }
     next = (pool->tail + 1) % pool->queue_size;
-    do 
+    do
     {
         /* Are we full ? */
         if(pool->count == pool->queue_size) {
@@ -178,7 +178,6 @@ int threadpool_free(threadpool_t *pool)
     return 0;
 }
 
-
 static void *threadpool_thread(void *threadpool)
 {
     threadpool_t *pool = (threadpool_t *)threadpool;
@@ -191,8 +190,8 @@ static void *threadpool_thread(void *threadpool)
 
         /* Wait on condition variable, check for spurious wakeups.
            When returning from pthread_cond_wait(), we own the lock. */
-        while((pool->count == 0) && (!pool->shutdown)) 
-        {
+        while((pool->count == 0) && (!pool->shutdown)) // count：添加进来的任务数
+        { // 当没有任务且线程池未关闭时，线程就阻塞在条件变量上。
             pthread_cond_wait(&(pool->notify), &(pool->lock));
         }
 

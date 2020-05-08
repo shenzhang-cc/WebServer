@@ -3,6 +3,7 @@
 #include <errno.h>
 #include "threadpool.h"
 
+// events 是一个指向包含epoll_event型数据的数组的指针
 struct epoll_event* events;
 
 int epoll_init()
@@ -54,7 +55,7 @@ int epoll_del(int epoll_fd, int fd, void *request, __uint32_t events)
     {
         perror("epoll_del error");
         return -1;
-    } 
+    }
     return 0;
 }
 

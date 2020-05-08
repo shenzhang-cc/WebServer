@@ -1,7 +1,7 @@
-#include "requestData.h"
-#include "epoll.h"
-#include "threadpool.h"
-#include "util.h"
+#include "requestData.h"  // 具体处理http请求
+#include "epoll.h"  // 实现高并发的IO复用
+#include "threadpool.h"  // 线程池
+#include "util.h"  // 数据读写相关
 
 #include <sys/epoll.h>
 #include <queue>
@@ -17,7 +17,9 @@
 
 using namespace std;
 
+// 线程池中的线程数
 const int THREADPOOL_THREAD_NUM = 4;
+// 队列长度
 const int QUEUE_SIZE = 65535;
 
 const int PORT = 8888;
@@ -28,10 +30,11 @@ const string PATH = "/";
 
 const int TIMER_TIME_OUT = 500;
 
-
+// 声明一个变量
 extern pthread_mutex_t qlock;
+// events 是一个指向包含epoll_event型数据的数组的指针
+// 在初始化epoll时定义
 extern struct epoll_event* events;
-void acceptConnection(int listen_fd, int epoll_fd, const string &path);
 
 extern priority_queue<mytimer*, deque<mytimer*>, timerCmp> myTimerQueue;
 
@@ -48,13 +51,15 @@ int socket_bind_listen(int port)
 
     // 消除bind时"Address already in use"错误
     int optval = 1;
+    // 将listen_fd设置为“允许重用本地地址和端口”
     if(setsockopt(listen_fd, SOL_SOCKET,  SO_REUSEADDR, &optval, sizeof(optval)) == -1)
         return -1;
 
-    // 设置服务器IP和Port，和监听描述副绑定
+    // 设置服务器IP和Port，和监听描述符绑定
     struct sockaddr_in server_addr;
     bzero((char*)&server_addr, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
+    // 将主机字节序转变为网络字节序
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons((unsigned short)port);
     if(bind(listen_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
@@ -88,13 +93,13 @@ void acceptConnection(int listen_fd, int epoll_fd, const string &path)
     int accept_fd = 0;
     while((accept_fd = accept(listen_fd, (struct sockaddr*)&client_addr, &client_addr_len)) > 0)
     {
-        /*
+
         // TCP的保活机制默认是关闭的
         int optval = 0;
         socklen_t len_optval = 4;
         getsockopt(accept_fd, SOL_SOCKET,  SO_KEEPALIVE, &optval, &len_optval);
         cout << "optval ==" << optval << endl;
-        */
+
         
         // 设为非阻塞模式
         int ret = setSocketNonBlocking(accept_fd);
@@ -106,7 +111,7 @@ void acceptConnection(int listen_fd, int epoll_fd, const string &path)
 
         requestData *req_info = new requestData(epoll_fd, accept_fd, path);
 
-        // 文件描述符可以读，边缘触发(Edge Triggered)模式，保证一个socket连接在任一时刻只被一个线程处理
+        // 文件描述符可以读|边缘触发(Edge Triggered)模式|保证一个socket连接在任一时刻只被一个线程处理
         __uint32_t _epo_event = EPOLLIN | EPOLLET | EPOLLONESHOT;
         epoll_add(epoll_fd, accept_fd, static_cast<void*>(req_info), _epo_event);
         // 新增时间信息
@@ -119,6 +124,7 @@ void acceptConnection(int listen_fd, int epoll_fd, const string &path)
     //if(accept_fd == -1)
      //   perror("accept");
 }
+
 // 分发处理函数
 void handle_events(int epoll_fd, int listen_fd, struct epoll_event* events, int events_num, const string &path, threadpool_t* tp)
 {
@@ -128,12 +134,15 @@ void handle_events(int epoll_fd, int listen_fd, struct epoll_event* events, int 
         requestData* request = (requestData*)(events[i].data.ptr);
         int fd = request->getFd();
 
-        // 有事件发生的描述符为监听描述符
+        // 如果有事件发生的描述符是监听描述符
+        // 这个事件就是listen_fd可读
+        // 则此时就可以accept客户端的连接了
         if(fd == listen_fd)
         {
             //cout << "This is listen_fd" << endl;
             acceptConnection(listen_fd, epoll_fd, path);
         }
+        // 如果发生事件的是与客户端的连接的套接字
         else
         {
             // 排除错误事件
@@ -144,10 +153,11 @@ void handle_events(int epoll_fd, int listen_fd, struct epoll_event* events, int 
                 delete request;
                 continue;
             }
-
-            // 将请求任务加入到线程池中
-            // 加入线程池之前将Timer和request分离
+            // 未出错的话就处理这个事件
+            // 当前事件接受了处理，所以不需要计时器了
+            // 将Timer和request分离
             request->seperateTimer();
+            // 将请求任务加入到线程池的任务队列中
             int rc = threadpool_add(tp, myHandler, events[i].data.ptr, 0);
         }
     }
@@ -190,31 +200,42 @@ void handle_expired_event()
 
 int main()
 {
+    // 管道信号的处理
     handle_for_sigpipe();
+
+    // 初始化epoll
     int epoll_fd = epoll_init();
     if (epoll_fd < 0)
     {
         perror("epoll init failed");
         return 1;
     }
+
+    // 建立一个线程数、任务数固定的线程池
     threadpool_t *threadpool = threadpool_create(THREADPOOL_THREAD_NUM, QUEUE_SIZE, 0);
+
+    // 创建套接字、bind、listen
     int listen_fd = socket_bind_listen(PORT);
     if (listen_fd < 0) 
     {
         perror("socket bind failed");
         return 1;
     }
+
+    // 将套接字转换为非阻塞模式
     if (setSocketNonBlocking(listen_fd) < 0)
     {
         perror("set socket non block failed");
         return 1;
     }
-    __uint32_t event = EPOLLIN | EPOLLET;
+    // typedef unsigned int __uint32_t
+    __uint32_t event = EPOLLIN | EPOLLET; // EPOLLIN：对应的文件描述符可读，EPOLLET：边缘触发模式
     requestData *req = new requestData();
     req->setFd(listen_fd);
     epoll_add(epoll_fd, listen_fd, static_cast<void*>(req), event);
     while (true)
     {
+        // 活跃事件数
         int events_num = my_epoll_wait(epoll_fd, events, MAXEVENTS, -1);
         //printf("%zu\n", myTimerQueue.size());        
         if (events_num == 0)

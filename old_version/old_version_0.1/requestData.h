@@ -64,22 +64,22 @@ struct requestData;
 struct requestData
 {
 private:
-    int againTimes;
-    std::string path;
-    int fd;
-    int epollfd;
+    int againTimes; //
+    std::string path;  ///
+    int fd; ///
+    int epollfd; ///
     // content的内容用完就清
     std::string content;
     int method;
     int HTTPversion;
     std::string file_name;
-    int now_read_pos;
-    int state;
-    int h_state;
+    int now_read_pos; //
+    int state; //
+    int h_state;  //
     bool isfinish;
-    bool keep_alive;
+    bool keep_alive; //
     std::unordered_map<std::string, std::string> headers;
-    mytimer *timer;
+    mytimer *timer; //
 
 private:
     int parse_URI();

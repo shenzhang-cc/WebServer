@@ -96,6 +96,7 @@ int requestData::getFd()
 {
     return fd;
 }
+
 void requestData::setFd(int _fd)
 {
     fd = _fd;
@@ -265,6 +266,7 @@ void requestData::handleRequest()
     }
 }
 
+// 解析URI
 int requestData::parse_URI()
 {
     string &str = content;
@@ -278,7 +280,7 @@ int requestData::parse_URI()
     string request_line = str.substr(0, pos);
     if (str.size() > pos + 1)
         str = str.substr(pos + 1);
-    else 
+    else
         str.clear();
     // Method
     pos = request_line.find("GET");
@@ -299,6 +301,7 @@ int requestData::parse_URI()
         method = METHOD_GET;
     }
     //printf("method = %d\n", method);
+
     // filename
     pos = request_line.find("/", pos);
     if (pos < 0)
@@ -328,6 +331,7 @@ int requestData::parse_URI()
         pos = _pos;
     }
     //cout << "file_name: " << file_name << endl;
+
     // HTTP 版本号
     pos = request_line.find("/", pos);
     if (pos < 0)
